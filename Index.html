@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AF‑GOLE Inventory • CRUD + Import/Export Excel</title>
+  <!-- Tailwind via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- SheetJS (xlsx) for Excel read/write -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    /* Compact table styles */
+    th, td { white-space: nowrap; }
+    .required:after { content:" *"; color:#ef4444; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+  <header class="sticky top-0 z-20 bg-white border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex flex-wrap items-center gap-3">
+      <h1 class="text-xl font-semibold tracking-tight">AF‑GOLE • Control de Activos Fijos</h1>
+      <span class="ml-auto text-sm text-slate-500" id="recordCount">0 registros</span>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Formulario -->
+    <section class="lg:col-span-1 bg-white p-4 rounded-2xl shadow border border-slate-200">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-semibold">Formulario</h2>
+        <span id="modeBadge" class="text-xs px-2 py-1 rounded-full bg-indigo-100 text-indigo-700">Nuevo</span>
+      </div>
+      <form id="assetForm" class="grid grid-cols-2 gap-3">
+        <!-- Código AF -->
+        <label class="col-span-2 text-sm font-medium required">Código AF</label>
+        <input id="codigo_af" required pattern=\"AF-GOLE-[0-9]{4}\" title=\"Formato: AF-GOLE-0000\" placeholder="AF-GOLE-0000" class="col-span-2 border rounded-lg px-3 py-2 focus:outline-none focus:ring w-full" />
+
+        <!-- Tipo -->
+        <label class="text-sm font-medium required">Tipo</label>
+        <select id="tipo" required class="border rounded-lg px-3 py-2 focus:outline-none focus:ring w-full">
+          <option value="">Seleccione…</option>
+          <option>Mobiliario</option>
+          <option>Computadores</option>
+          <option>Impresoras</option>
+          <option>Red</option>
+          <option>Herramientas</option>
+          <option>Otros</option>
+        </select>
+
+        <!-- Nombre -->
+        <label class="text-sm font-medium required">Nombre</label>
+        <input id="nombre" required class="border rounded-lg px-3 py-2" />
+
+        <!-- Descripción -->
+        <label class="text-sm font-medium">Descripción</label>
+        <input id="descripcion" class="border rounded-lg px-3 py-2" />
+
+        <!-- Ubicación -->
+        <label class="text-sm font-medium">Ubicación</label>
+        <input id="ubicacion" class="border rounded-lg px-3 py-2" />
+
+        <!-- Responsable -->
+        <label class="text-sm font-medium">Responsable</label>
+        <input id="responsable" class="border rounded-lg px-3 py-2" />
+
+        <!-- Estado -->
+        <label class="text-sm font-medium required">Estado</label>
+        <select id="estado" required class="border rounded-lg px-3 py-2">
+          <option value="">Seleccione…</option>
+          <option>Activo</option>
+          <option>Asignado</option>
+          <option>En reparación</option>
+          <option>De baja</option>
+        </select>
+
+        <!-- Fecha Alta -->
+        <label class="text-sm font-medium required">Fecha Alta</label>
+        <input id="fecha_alta" type="date" required class="border rounded-lg px-3 py-2" />
+
+        <!-- Costo -->
+        <label class="text-sm font-medium">Costo</label>
+        <input id="costo" type="number" min="0" step="0.01" placeholder="0.00" class="border rounded-lg px-3 py-2" />
+
+        <!-- Serie -->
+        <label class="text-sm font-medium">Serie</label>
+        <input id="serie" class="border rounded-lg px-3 py-2" />
+
+        <!-- Observaciones -->
+        <label class="text-sm font-medium">Observaciones</label>
+        <input id="observaciones" class="border rounded-lg px-3 py-2" />
+
+        <!-- Fecha Baja -->
+        <label class="text-sm font-medium">Fecha Baja</label>
+        <input id="fecha_baja" type="date" class="border rounded-lg px-3 py-2" />
+
+        <!-- AREA -->
+        <label class="text-sm font-medium">AREA</label>
+        <input id="area" class="border rounded-lg px-3 py-2" />
+
+        <!-- NOMBRE COMPLETO USUARIO -->
+        <label class="text-sm font-medium">NOMBRE COMPLETO USUARIO</label>
+        <input id="nombre_usuario" class="border rounded-lg px-3 py-2" />
+
+        <!-- CEDULA -->
+        <label class="text-sm font-medium">CEDULA</label>
+        <input id="cedula" class="border rounded-lg px-3 py-2" />
+
+        <!-- CARGO -->
+        <label class="text-sm font-medium">CARGO</label>
+        <input id="cargo" class="border rounded-lg px-3 py-2" />
+
+        <!-- PROGRAMA -->
+        <label class="text-sm font-medium">PROGRAMA</label>
+        <input id="programa" class="border rounded-lg px-3 py-2" />
+
+        <!-- CORREO CORPORATIVO -->
+        <label class="text-sm font-medium">CORREO CORPORATIVO</label>
+        <input id="correo" type="email" placeholder="usuario@ipsgoleman.com.co" class="border rounded-lg px-3 py-2" />
+
+        <div class="col-span-2 flex gap-2 pt-2">
+          <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 focus:ring">Guardar</button>
+          <button type="button" id="resetBtn" class="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-50">Limpiar</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Panel derecho: Controles + Tabla -->
+    <section class="lg:col-span-2 space-y-4">
+      <!-- Controles -->
+      <div class="bg-white p-4 rounded-2xl shadow border border-slate-200 flex flex-wrap items-center gap-3">
+        <div class="flex items-center gap-2">
+          <label for="fileInput" class="px-3 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 cursor-pointer">Cargar Excel…</label>
+          <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" class="hidden" />
+          <button id="downloadBtn" class="px-3 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700">Descargar Excel</button>
+          <button id="templateBtn" class="px-3 py-2 rounded-xl border border-slate-300 hover:bg-slate-50">Descargar plantilla</button>
+          <button id="ghConnectBtn" class="px-3 py-2 rounded-xl border border-slate-300 hover:bg-slate-50">GitHub: Conectar</button>
+          <button id="ghPushBtn" class="px-3 py-2 rounded-xl border border-slate-300 hover:bg-slate-50">Subir ahora</button>
+        </div>
+        <div class="ml-auto flex items-center gap-3">
+          <label class="text-sm flex items-center gap-2"><input id="autoExportToggle" type="checkbox" class="accent-indigo-600"> Descargar al cerrar</label>
+          <input id="searchInput" placeholder="Buscar…" class="border rounded-xl px-3 py-2 w-52" />
+          <select id="filtroTipo" class="border rounded-xl px-3 py-2">
+            <option value="">Tipo: todos</option>
+          </select>
+          <select id="filtroEstado" class="border rounded-xl px-3 py-2">
+            <option value="">Estado: todos</option>
+            <option>Activo</option>
+            <option>Asignado</option>
+            <option>En reparación</option>
+            <option>De baja</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Tabla -->
+      <div class="bg-white p-0 rounded-2xl shadow border border-slate-200 overflow-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-slate-100 text-slate-700 sticky top-0 z-10">
+            <tr>
+              <th class="px-3 py-2 text-left">Acciones</th>
+              <th class="px-3 py-2 text-left">Código AF</th>
+              <th class="px-3 py-2 text-left">Tipo</th>
+              <th class="px-3 py-2 text-left">Nombre</th>
+              <th class="px-3 py-2 text-left">Descripción</th>
+              <th class="px-3 py-2 text-left">Ubicación</th>
+              <th class="px-3 py-2 text-left">Responsable</th>
+              <th class="px-3 py-2 text-left">Estado</th>
+              <th class="px-3 py-2 text-left">Fecha Alta</th>
+              <th class="px-3 py-2 text-left">Costo</th>
+              <th class="px-3 py-2 text-left">Serie</th>
+              <th class="px-3 py-2 text-left">Observaciones</th>
+              <th class="px-3 py-2 text-left">Fecha Baja</th>
+              <th class="px-3 py-2 text-left">AREA</th>
+              <th class="px-3 py-2 text-left">NOMBRE COMPLETO USUARIO</th>
+              <th class="px-3 py-2 text-left">CEDULA</th>
+              <th class="px-3 py-2 text-left">CARGO</th>
+              <th class="px-3 py-2 text-left">PROGRAMA</th>
+              <th class="px-3 py-2 text-left">CORREO CORPORATIVO</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Toast -->
+  <div id="toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-sm px-4 py-2 rounded-xl shadow-lg">Guardado</div>
+
+<script>
+// ======= Config =======
+const EXPECTED_HEADERS = [
+  "Código AF","Tipo","Nombre","Descripción","Ubicación","Responsable","Estado","Fecha Alta","Costo","Serie","Observaciones","Fecha Baja","AREA","NOMBRE COMPLETO USUARIO","CEDULA","CARGO","PROGRAMA","CORREO CORPORATIVO"
+];
+const STORAGE_KEY = 'af_gole_inventory_v1';
+const STORAGE_META = 'af_gole_inventory_meta_v1';
+const DEFAULT_FILENAME_BASE = 'inventario_activos';
+const TYPE_OPTIONS = ["Mobiliario","Computadores","Impresoras","Red","Herramientas","Otros"];
+// GitHub keys
+const GH_CFG_KEY = 'af_gole_gh_cfg_v1';
+const GH_FLAGS_KEY = 'af_gole_flags_v1';
+const GH_TOKEN_SESSION_KEY = 'af_gole_gh_token';
+
+// ======= State =======
+let rows = []; // array of objects
+let editingIndex = null; // number | null
+let dirty = false; // track unsaved changes
+let sourceFileBase = null; // base name (sin extensión) del archivo importado
+// GitHub state
+let ghCfg = {owner:'', repo:'', branch:'main', pathPrefix:'exports'};
+let ghToken = null;
+
+// ======= DOM =======
+const form = document.getElementById('assetForm');
+const tableBody = document.getElementById('tableBody');
+const recordCount = document.getElementById('recordCount');
+const fileInput = document.getElementById('fileInput');
+const downloadBtn = document.getElementById('downloadBtn');
+const templateBtn = document.getElementById('templateBtn');
+const ghConnectBtn = document.getElementById('ghConnectBtn');
+const ghPushBtn = document.getElementById('ghPushBtn');
+const modeBadge = document.getElementById('modeBadge');
+const resetBtn = document.getElementById('resetBtn');
+const searchInput = document.getElementById('searchInput');
+const filtroTipo = document.getElementById('filtroTipo');
+const filtroEstado = document.getElementById('filtroEstado');
+const autoExportToggle = document.getElementById('autoExportToggle');
+const autoCommitToggle = document.createElement('input');
+autoCommitToggle.type = 'checkbox';
+autoCommitToggle.id = 'autoCommitToggle';
+autoCommitToggle.className = 'accent-indigo-600';
+// Insertar checkbox en el bloque de controles (derecha)
+(function injectAutoCommit(){
+  const rightControls = document.querySelector('.ml-auto.flex.items-center.gap-3');
+  if(rightControls){
+    const lbl = document.createElement('label');
+    lbl.className = 'text-sm flex items-center gap-2';
+    lbl.appendChild(autoCommitToggle);
+    const txt = document.createTextNode(' Auto-commit a GitHub');
+    lbl.appendChild(txt);
+    rightControls.insertBefore(lbl, document.getElementById('searchInput'));
+  }
+})();
+const toast = document.getElementById('toast');
+
+// Cargar flags/config GH
+(function loadGh(){
+  try{
+    const cfg = JSON.parse(localStorage.getItem(GH_CFG_KEY) || '{}');
+    if(cfg && typeof cfg==='object') ghCfg = Object.assign(ghCfg, cfg);
+  }catch(e){}
+  try{
+    const flags = JSON.parse(localStorage.getItem(GH_FLAGS_KEY) || '{}');
+    if(flags && typeof flags==='object'){
+      if(flags.autoCommit) autoCommitToggle.checked = true;
+      if(flags.autoExport) autoExportToggle.checked = true;
+    }
+  }catch(e){}
+  try{ ghToken = sessionStorage.getItem(GH_TOKEN_SESSION_KEY) || null; }catch(e){}
+})();
+
+// Populate filtroTipo
+(function initTipoFilter(){
+  filtroTipo.innerHTML = '<option value="">Tipo: todos</option>' + TYPE_OPTIONS.map(t=>`<option>${t}</option>`).join('');
+})();
+
+// ======= Utils =======
+const nf = new Intl.NumberFormat('es-CO', {minimumFractionDigits:2, maximumFractionDigits:2});
+const diacritics = (s)=> s.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+function normHeader(h){
+  return diacritics(String(h||'').trim()).toUpperCase().replace(/\s+/g,' ');
+}
+function toYMD(dateStr){
+  if(!dateStr) return '';
+  const d = new Date(dateStr);
+  if(isNaN(d)) return '';
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+function fmtNowStamp(){
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mm = String(d.getMinutes()).padStart(2,'0');
+  const ss = String(d.getSeconds()).padStart(2,'0');
+  return `${y}${m}${day}_${hh}${mm}${ss}`;
+}
+function showToast(msg='Guardado'){
+  toast.textContent = msg;
+  toast.classList.remove('hidden');
+  setTimeout(()=> toast.classList.add('hidden'), 1800);
+}
+function saveGhFlags(){
+  const payload = { autoExport: !!autoExportToggle.checked, autoCommit: !!autoCommitToggle.checked };
+  localStorage.setItem(GH_FLAGS_KEY, JSON.stringify(payload));
+}
+function updateGhUi(){
+  if(!ghConnectBtn) return;
+  const connected = !!ghToken && ghCfg.owner && ghCfg.repo;
+  ghConnectBtn.textContent = connected ? 'GitHub: Conectado' : 'GitHub: Conectar';
+}
+function setDirty(v){
+  dirty = !!v;
+}
+
+// ======= Storage =======
+function saveLocal(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
+  localStorage.setItem(STORAGE_META, JSON.stringify({sourceFileBase, updatedAt: Date.now()}));
+}
+function loadLocal(){
+  try{
+    const cached = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const meta = JSON.parse(localStorage.getItem(STORAGE_META) || '{}');
+    if(Array.isArray(cached)){
+      rows = cached;
+      sourceFileBase = meta.sourceFileBase || null;
+      refreshTable();
+    }
+  }catch(e){ console.warn('No cache'); }
+}
+
+// ======= Table render + filters =======
+function matchesFilters(row){
+  const q = searchInput.value.trim().toLowerCase();
+  const t = filtroTipo.value;
+  const e = filtroEstado.value;
+  if(t && row["Tipo"] !== t) return false;
+  if(e && row["Estado"] !== e) return false;
+  if(q){
+    const hay = EXPECTED_HEADERS.some(h=> String(row[h]||'').toLowerCase().includes(q));
+    if(!hay) return false;
+  }
+  return true;
+}
+function refreshTable(){
+  const frag = document.createDocumentFragment();
+  const filtered = rows.filter(matchesFilters);
+  filtered.forEach((row, idx)=>{
+    const tr = document.createElement('tr');
+    tr.className = idx % 2 ? 'bg-white' : 'bg-slate-50';
+
+    const actionTd = document.createElement('td');
+    actionTd.className = 'px-3 py-2';
+    const editBtn = document.createElement('button');
+    editBtn.className = 'text-indigo-600 hover:underline mr-2';
+    editBtn.textContent = 'Editar';
+    editBtn.onclick = ()=> startEdit(row["Código AF"]);
+    const delBtn = document.createElement('button');
+    delBtn.className = 'text-rose-600 hover:underline';
+    delBtn.textContent = 'Eliminar';
+    delBtn.onclick = ()=> deleteByCodigo(row["Código AF"]);
+    actionTd.append(editBtn, delBtn);
+    tr.appendChild(actionTd);
+
+    EXPECTED_HEADERS.forEach(h=>{
+      const td = document.createElement('td');
+      td.className = 'px-3 py-2';
+      let val = row[h] ?? '';
+      if(h === 'Costo' && val!=='') val = nf.format(Number(val)||0);
+      if(h.includes('Fecha') && val) val = toYMD(val);
+      td.textContent = val;
+      tr.appendChild(td);
+    });
+    frag.appendChild(tr);
+  });
+  tableBody.innerHTML = '';
+  tableBody.appendChild(frag);
+  recordCount.textContent = `${rows.length} registros` + (filtered.length!==rows.length? ` • filtrados: ${filtered.length}`: '');
+  saveLocal();
+}
+
+// ======= CRUD =======
+function formToObj(){
+  return {
+    "Código AF": document.getElementById('codigo_af').value.trim(),
+    "Tipo": document.getElementById('tipo').value,
+    "Nombre": document.getElementById('nombre').value.trim(),
+    "Descripción": document.getElementById('descripcion').value.trim(),
+    "Ubicación": document.getElementById('ubicacion').value.trim(),
+    "Responsable": document.getElementById('responsable').value.trim(),
+    "Estado": document.getElementById('estado').value,
+    "Fecha Alta": document.getElementById('fecha_alta').value,
+    "Costo": document.getElementById('costo').value,
+    "Serie": document.getElementById('serie').value.trim(),
+    "Observaciones": document.getElementById('observaciones').value.trim(),
+    "Fecha Baja": document.getElementById('fecha_baja').value,
+    "AREA": document.getElementById('area').value.trim(),
+    "NOMBRE COMPLETO USUARIO": document.getElementById('nombre_usuario').value.trim(),
+    "CEDULA": document.getElementById('cedula').value.trim(),
+    "CARGO": document.getElementById('cargo').value.trim(),
+    "PROGRAMA": document.getElementById('programa').value.trim(),
+    "CORREO CORPORATIVO": document.getElementById('correo').value.trim(),
+  };
+}
+function objToForm(obj){
+  document.getElementById('codigo_af').value = obj["Código AF"]||'';
+  document.getElementById('tipo').value = obj["Tipo"]||'';
+  document.getElementById('nombre').value = obj["Nombre"]||'';
+  document.getElementById('descripcion').value = obj["Descripción"]||'';
+  document.getElementById('ubicacion').value = obj["Ubicación"]||'';
+  document.getElementById('responsable').value = obj["Responsable"]||'';
+  document.getElementById('estado').value = obj["Estado"]||'';
+  document.getElementById('fecha_alta').value = obj["Fecha Alta"]? toYMD(obj["Fecha Alta"]) : '';
+  document.getElementById('costo').value = obj["Costo"]||'';
+  document.getElementById('serie').value = obj["Serie"]||'';
+  document.getElementById('observaciones').value = obj["Observaciones"]||'';
+  document.getElementById('fecha_baja').value = obj["Fecha Baja"]? toYMD(obj["Fecha Baja"]) : '';
+  document.getElementById('area').value = obj["AREA"]||'';
+  document.getElementById('nombre_usuario').value = obj["NOMBRE COMPLETO USUARIO"]||'';
+  document.getElementById('cedula').value = obj["CEDULA"]||'';
+  document.getElementById('cargo').value = obj["CARGO"]||'';
+  document.getElementById('programa').value = obj["PROGRAMA"]||'';
+  document.getElementById('correo').value = obj["CORREO CORPORATIVO"]||'';
+}
+function resetForm(){
+  form.reset();
+  editingIndex = null;
+  modeBadge.textContent = 'Nuevo';
+  modeBadge.className = 'text-xs px-2 py-1 rounded-full bg-indigo-100 text-indigo-700';
+}
+function validate(obj){
+  const codeOk = /^AF-GOLE-\d{4}$/.test(obj["Código AF"]);
+  if(!codeOk) return {ok:false, msg:'Código AF inválido. Use AF-GOLE-0000'};
+  if(!obj["Tipo"]) return {ok:false, msg:'Seleccione Tipo'};
+  if(!obj["Estado"]) return {ok:false, msg:'Seleccione Estado'};
+  if(!obj["Fecha Alta"]) return {ok:false, msg:'Fecha Alta es requerida'};
+  if(obj["CORREO CORPORATIVO"] && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(obj["CORREO CORPORATIVO"]))
+    return {ok:false, msg:'Correo corporativo inválido'};
+  if(editingIndex===null){
+    // new: enforce unique Código AF
+    const exists = rows.some(r=> r["Código AF"] === obj["Código AF"]);
+    if(exists) return {ok:false, msg:'Código AF ya existe'};
+  } else {
+    // editing: if changed code, ensure uniqueness
+    const existsOther = rows.some((r,i)=> r["Código AF"] === obj["Código AF"] && i!==editingIndex);
+    if(existsOther) return {ok:false, msg:'Código AF ya existe en otro registro'};
+  }
+  return {ok:true};
+}
+
+form.addEventListener('submit', (e)=>{
+  e.preventDefault();
+  const obj = formToObj();
+  const v = validate(obj);
+  if(!v.ok){ alert(v.msg); return; }
+  if(editingIndex===null){
+    rows.push(obj);
+  } else {
+    rows[editingIndex] = obj;
+  }
+  setDirty(true);
+  refreshTable();
+  showToast(editingIndex===null? 'Creado' : 'Actualizado');
+  resetForm();
+});
+
+resetBtn.addEventListener('click', ()=> resetForm());
+
+function startEdit(codigoAf){
+  const idx = rows.findIndex(r=> r["Código AF"]===codigoAf);
+  if(idx<0) return;
+  editingIndex = idx;
+  objToForm(rows[idx]);
+  modeBadge.textContent = 'Edición';
+  modeBadge.className = 'text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700';
+}
+function deleteByCodigo(codigoAf){
+  if(!confirm(`¿Eliminar ${codigoAf}?`)) return;
+  const idx = rows.findIndex(r=> r["Código AF"]===codigoAf);
+  if(idx>=0){
+    rows.splice(idx,1);
+    setDirty(true);
+    refreshTable();
+    showToast('Eliminado');
+    if(editingIndex===idx) resetForm();
+  }
+}
+
+// ======= GitHub integration =======
+function abToBase64(ab){
+  // Convert ArrayBuffer to base64
+  const bytes = new Uint8Array(ab);
+  let binary = '';
+  const chunk = 0x8000;
+  for(let i=0; i<bytes.length; i+=chunk){
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i+chunk));
+  }
+  return btoa(binary);
+}
+async function ghGetFileSha(path){
+  const url = `https://api.github.com/repos/${ghCfg.owner}/${ghCfg.repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(ghCfg.branch)}`;
+  const res = await fetch(url, { headers: { 'Accept':'application/vnd.github+json', 'Authorization': ghToken ? `Bearer ${ghToken}` : '' }});
+  if(res.status===200){ const j = await res.json(); return j.sha || null; }
+  if(res.status===404) return null;
+  throw new Error(`GH get sha failed: ${res.status}`);
+}
+async function ghPutFile(path, base64Content, message){
+  const url = `https://api.github.com/repos/${ghCfg.owner}/${ghCfg.repo}/contents/${encodeURIComponent(path)}`;
+  const sha = await ghGetFileSha(path).catch(()=>null);
+  const body = { message, content: base64Content, branch: ghCfg.branch, sha: sha || undefined, committer: { name: 'af-gole bot', email: 'noreply@local' } };
+  const res = await fetch(url, { method:'PUT', headers: { 'Accept':'application/vnd.github+json', 'Authorization': ghToken ? `Bearer ${ghToken}` : '', 'Content-Type':'application/json' }, body: JSON.stringify(body)});
+  if(!res.ok){ const t = await res.text(); throw new Error(`GH put failed ${res.status}: ${t}`); }
+  return res.json();
+}
+async function maybePushWorkbookToGitHub(wb, base){
+  if(!autoCommitToggle.checked) return false;
+  if(!ghToken || !ghCfg.owner || !ghCfg.repo){ showToast('Configura GitHub primero'); return false; }
+  const ab = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+  const b64 = abToBase64(ab);
+  const stamp = fmtNowStamp();
+  const folder = ghCfg.pathPrefix && ghCfg.pathPrefix.trim() ? ghCfg.pathPrefix.replace(/\/$/,'') : '';
+  const latestPath = (folder? folder + '/' : '') + `${base}_latest.xlsx`;
+  const histPath = (folder? folder + '/' : '') + `${base}_${stamp}.xlsx`;
+  await ghPutFile(latestPath, b64, `chore(inventory): update ${base} (latest) ${stamp}`);
+  await ghPutFile(histPath, b64, `chore(inventory): archive ${base} ${stamp}`);
+  return true;
+}
+
+// ======= Import =======
+fileInput.addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  try{
+    const base = file.name.replace(/\.(xlsx|xls|csv)$/i,'');
+    sourceFileBase = base;
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, {type:'array'});
+    const wsName = wb.SheetNames[0];
+    const ws = wb.Sheets[wsName];
+    // Read as array of objects preserving headers
+    const raw = XLSX.utils.sheet_to_json(ws, {defval:'', raw:true});
+    if(raw.length===0){ alert('El archivo está vacío'); return; }
+
+    // Normalize headers and map to EXPECTED_HEADERS
+    const headerRow = XLSX.utils.sheet_to_json(ws, {header:1, range:0})[0] || [];
+    const map = {}; // normalized header -> expected header
+    headerRow.forEach(h=>{
+      const nh = normHeader(h);
+      const found = EXPECTED_HEADERS.find(eh=> normHeader(eh)===nh);
+      if(found) map[nh] = found;
+    });
+
+    const imported = raw.map(r=>{
+      const obj = {};
+      EXPECTED_HEADERS.forEach(h=>{ obj[h] = ''; });
+      Object.entries(r).forEach(([k,v])=>{
+        const nh = normHeader(k);
+        const dest = map[nh];
+        if(dest){ obj[dest] = v; }
+      });
+      // Dates: try to convert Excel dates
+      ["Fecha Alta","Fecha Baja"].forEach(k=>{
+        if(typeof obj[k]==='number'){ obj[k] = XLSX.SSF.format('yyyy-mm-dd', obj[k]); }
+      });
+      return obj;
+    });
+
+    // Merge: replace or append (here we append, avoiding duplicates by Código AF)
+    let added = 0, updated = 0;
+    imported.forEach(item=>{
+      const idx = rows.findIndex(r=> r["Código AF"]===item["Código AF"]);
+      if(idx>=0){ rows[idx] = item; updated++; }
+      else { rows.push(item); added++; }
+    });
+
+    setDirty(true);
+    refreshTable();
+    showToast(`Importado: ${added} nuevos, ${updated} actualizados`);
+    fileInput.value = '';
+  } catch(err){
+    console.error(err);
+    alert('Error al importar. Verifique el formato.');
+  }
+});
+
+// ======= Export =======
+function rowsToSheet(){
+  // Build array with headers first
+  const aoa = [EXPECTED_HEADERS];
+  rows.forEach(r=>{
+    aoa.push(EXPECTED_HEADERS.map(h=> r[h] ?? ''));
+  });
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  // set column widths (approx)
+  const widths = [12,12,18,22,18,18,14,12,10,12,20,12,12,24,16,14,16,26].map(w=>({wch:w}));
+  ws['!cols'] = [{wch:12}, {wch:12}, {wch:20}, {wch:24}, {wch:18}, {wch:18}, {wch:14}, {wch:12}, {wch:12}, {wch:12}, {wch:20}, {wch:12}, {wch:12}, {wch:26}, {wch:16}, {wch:14}, {wch:16}, {wch:28}];
+  return ws;
+}
+async function downloadExcel(manual=false){
+  if(rows.length===0){ alert('No hay registros para exportar'); return; }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, rowsToSheet(), 'Inventario');
+  const base = sourceFileBase || DEFAULT_FILENAME_BASE;
+  const fileName = `${base}_${fmtNowStamp()}.xlsx`;
+  // descarga local
+  XLSX.writeFile(wb, fileName);
+  // push opcional a GitHub
+  try{
+    const pushed = await maybePushWorkbookToGitHub(wb, base);
+    if(pushed && manual) showToast('Excel descargado y subido a GitHub');
+    else if(manual) showToast('Excel descargado');
+  }catch(err){ console.warn(err); if(manual) alert('Subida a GitHub falló: ' + err.message); }
+  setDirty(false);
+}
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, rowsToSheet(), 'Inventario');
+  const base = sourceFileBase || DEFAULT_FILENAME_BASE;
+  const fileName = `${base}_${fmtNowStamp()}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+  setDirty(false);
+  if(manual) showToast('Excel descargado');
+}
+
+downloadBtn.addEventListener('click', ()=> downloadExcel(true));
+
+ghPushBtn.addEventListener('click', ()=> downloadExcel(true));
+
+ghConnectBtn.addEventListener('click', ()=>{
+  const token = prompt('Pega tu GitHub Fine-grained PAT (repo contents:write). Se guardará solo en esta sesión del navegador.', ghToken || '');
+  if(token===null) return;
+  ghToken = token.trim();
+  if(ghToken) sessionStorage.setItem(GH_TOKEN_SESSION_KEY, ghToken); else sessionStorage.removeItem(GH_TOKEN_SESSION_KEY);
+  const owner = prompt('Owner (usuario u organización)', ghCfg.owner || ''); if(owner===null) return; ghCfg.owner = owner.trim();
+  const repo = prompt('Repositorio (nombre)', ghCfg.repo || ''); if(repo===null) return; ghCfg.repo = repo.trim();
+  const branch = prompt('Branch', ghCfg.branch || 'main'); if(branch===null) return; ghCfg.branch = branch.trim();
+  const pathPrefix = prompt('Carpeta destino dentro del repo (ej. exports)', ghCfg.pathPrefix || 'exports'); if(pathPrefix===null) return; ghCfg.pathPrefix = pathPrefix.trim();
+  localStorage.setItem(GH_CFG_KEY, JSON.stringify(ghCfg));
+  updateGhUi();
+  showToast('Configuración de GitHub guardada');
+});
+
+templateBtn.addEventListener('click', ()=>{
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([EXPECTED_HEADERS]);
+  XLSX.utils.book_append_sheet(wb, ws, 'Plantilla');
+  XLSX.writeFile(wb, 'plantilla_inventario_AF.xlsx');
+});
+
+// ======= Filters =======
+searchInput.addEventListener('input', refreshTable);
+[filtroTipo, filtroEstado].forEach(el=> el.addEventListener('change', refreshTable));
+
+// Persistir flags al cambiar toggles
+autoExportToggle.addEventListener('change', saveGhFlags);
+autoCommitToggle.addEventListener('change', saveGhFlags);(el=> el.addEventListener('change', refreshTable));
+
+// ======= Auto-export on close =======
+window.addEventListener('beforeunload', (e)=>{
+  if(!autoExportToggle.checked) return; // disabled by user
+  if(!dirty) return; // nothing to save
+  // Attempt export (some browsers may block downloads here)
+  try { downloadExcel(false); } catch(err) { console.warn('Auto-export falló', err); }
+  // Show native prompt to reduce data loss risk
+  e.preventDefault();
+  e.returnValue = '';
+});
+
+// ======= Bootstrap =======
+loadLocal();
+updateGhUi();
+
+// Keyboard niceties
+window.addEventListener('keydown', (e)=>{
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='s'){
+    e.preventDefault();
+    downloadExcel(true);
+  }
+});
+</script>
+</body>
+</html>
