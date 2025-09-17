@@ -132,8 +132,6 @@
           <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" class="hidden" />
           <button id="downloadBtn" class="px-3 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700">Descargar Excel</button>
           <button id="templateBtn" class="px-3 py-2 rounded-xl border border-slate-300 hover:bg-slate-50">Descargar plantilla</button>
-          <button id="ghConnectBtn" class="px-3 py-2 rounded-xl border border-slate-300 hover:bg-slate-50">GitHub: Conectar</button>
-          <button id="ghPushBtn" class="px-3 py-2 rounded-xl border border-slate-300 hover:bg-slate-50">Subir ahora</button>
         </div>
         <div class="ml-auto flex items-center gap-3">
           <label class="text-sm flex items-center gap-2"><input id="autoExportToggle" type="checkbox" class="accent-indigo-600"> Descargar al cerrar</label>
@@ -195,19 +193,12 @@ const STORAGE_KEY = 'af_gole_inventory_v1';
 const STORAGE_META = 'af_gole_inventory_meta_v1';
 const DEFAULT_FILENAME_BASE = 'inventario_activos';
 const TYPE_OPTIONS = ["Mobiliario","Computadores","Impresoras","Red","Herramientas","Otros"];
-// GitHub keys
-const GH_CFG_KEY = 'af_gole_gh_cfg_v1';
-const GH_FLAGS_KEY = 'af_gole_flags_v1';
-const GH_TOKEN_SESSION_KEY = 'af_gole_gh_token';
 
 // ======= State =======
 let rows = []; // array of objects
 let editingIndex = null; // number | null
 let dirty = false; // track unsaved changes
 let sourceFileBase = null; // base name (sin extensión) del archivo importado
-// GitHub state
-let ghCfg = {owner:'', repo:'', branch:'main', pathPrefix:'exports'};
-let ghToken = null;
 
 // ======= DOM =======
 const form = document.getElementById('assetForm');
@@ -216,47 +207,13 @@ const recordCount = document.getElementById('recordCount');
 const fileInput = document.getElementById('fileInput');
 const downloadBtn = document.getElementById('downloadBtn');
 const templateBtn = document.getElementById('templateBtn');
-const ghConnectBtn = document.getElementById('ghConnectBtn');
-const ghPushBtn = document.getElementById('ghPushBtn');
 const modeBadge = document.getElementById('modeBadge');
 const resetBtn = document.getElementById('resetBtn');
 const searchInput = document.getElementById('searchInput');
 const filtroTipo = document.getElementById('filtroTipo');
 const filtroEstado = document.getElementById('filtroEstado');
 const autoExportToggle = document.getElementById('autoExportToggle');
-const autoCommitToggle = document.createElement('input');
-autoCommitToggle.type = 'checkbox';
-autoCommitToggle.id = 'autoCommitToggle';
-autoCommitToggle.className = 'accent-indigo-600';
-// Insertar checkbox en el bloque de controles (derecha)
-(function injectAutoCommit(){
-  const rightControls = document.querySelector('.ml-auto.flex.items-center.gap-3');
-  if(rightControls){
-    const lbl = document.createElement('label');
-    lbl.className = 'text-sm flex items-center gap-2';
-    lbl.appendChild(autoCommitToggle);
-    const txt = document.createTextNode(' Auto-commit a GitHub');
-    lbl.appendChild(txt);
-    rightControls.insertBefore(lbl, document.getElementById('searchInput'));
-  }
-})();
 const toast = document.getElementById('toast');
-
-// Cargar flags/config GH
-(function loadGh(){
-  try{
-    const cfg = JSON.parse(localStorage.getItem(GH_CFG_KEY) || '{}');
-    if(cfg && typeof cfg==='object') ghCfg = Object.assign(ghCfg, cfg);
-  }catch(e){}
-  try{
-    const flags = JSON.parse(localStorage.getItem(GH_FLAGS_KEY) || '{}');
-    if(flags && typeof flags==='object'){
-      if(flags.autoCommit) autoCommitToggle.checked = true;
-      if(flags.autoExport) autoExportToggle.checked = true;
-    }
-  }catch(e){}
-  try{ ghToken = sessionStorage.getItem(GH_TOKEN_SESSION_KEY) || null; }catch(e){}
-})();
 
 // Populate filtroTipo
 (function initTipoFilter(){
@@ -291,15 +248,6 @@ function showToast(msg='Guardado'){
   toast.textContent = msg;
   toast.classList.remove('hidden');
   setTimeout(()=> toast.classList.add('hidden'), 1800);
-}
-function saveGhFlags(){
-  const payload = { autoExport: !!autoExportToggle.checked, autoCommit: !!autoCommitToggle.checked };
-  localStorage.setItem(GH_FLAGS_KEY, JSON.stringify(payload));
-}
-function updateGhUi(){
-  if(!ghConnectBtn) return;
-  const connected = !!ghToken && ghCfg.owner && ghCfg.repo;
-  ghConnectBtn.textContent = connected ? 'GitHub: Conectado' : 'GitHub: Conectar';
 }
 function setDirty(v){
   dirty = !!v;
@@ -479,46 +427,6 @@ function deleteByCodigo(codigoAf){
   }
 }
 
-// ======= GitHub integration =======
-function abToBase64(ab){
-  // Convert ArrayBuffer to base64
-  const bytes = new Uint8Array(ab);
-  let binary = '';
-  const chunk = 0x8000;
-  for(let i=0; i<bytes.length; i+=chunk){
-    binary += String.fromCharCode.apply(null, bytes.subarray(i, i+chunk));
-  }
-  return btoa(binary);
-}
-async function ghGetFileSha(path){
-  const url = `https://api.github.com/repos/${ghCfg.owner}/${ghCfg.repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(ghCfg.branch)}`;
-  const res = await fetch(url, { headers: { 'Accept':'application/vnd.github+json', 'Authorization': ghToken ? `Bearer ${ghToken}` : '' }});
-  if(res.status===200){ const j = await res.json(); return j.sha || null; }
-  if(res.status===404) return null;
-  throw new Error(`GH get sha failed: ${res.status}`);
-}
-async function ghPutFile(path, base64Content, message){
-  const url = `https://api.github.com/repos/${ghCfg.owner}/${ghCfg.repo}/contents/${encodeURIComponent(path)}`;
-  const sha = await ghGetFileSha(path).catch(()=>null);
-  const body = { message, content: base64Content, branch: ghCfg.branch, sha: sha || undefined, committer: { name: 'af-gole bot', email: 'noreply@local' } };
-  const res = await fetch(url, { method:'PUT', headers: { 'Accept':'application/vnd.github+json', 'Authorization': ghToken ? `Bearer ${ghToken}` : '', 'Content-Type':'application/json' }, body: JSON.stringify(body)});
-  if(!res.ok){ const t = await res.text(); throw new Error(`GH put failed ${res.status}: ${t}`); }
-  return res.json();
-}
-async function maybePushWorkbookToGitHub(wb, base){
-  if(!autoCommitToggle.checked) return false;
-  if(!ghToken || !ghCfg.owner || !ghCfg.repo){ showToast('Configura GitHub primero'); return false; }
-  const ab = XLSX.write(wb, {bookType:'xlsx', type:'array'});
-  const b64 = abToBase64(ab);
-  const stamp = fmtNowStamp();
-  const folder = ghCfg.pathPrefix && ghCfg.pathPrefix.trim() ? ghCfg.pathPrefix.replace(/\/$/,'') : '';
-  const latestPath = (folder? folder + '/' : '') + `${base}_latest.xlsx`;
-  const histPath = (folder? folder + '/' : '') + `${base}_${stamp}.xlsx`;
-  await ghPutFile(latestPath, b64, `chore(inventory): update ${base} (latest) ${stamp}`);
-  await ghPutFile(histPath, b64, `chore(inventory): archive ${base} ${stamp}`);
-  return true;
-}
-
 // ======= Import =======
 fileInput.addEventListener('change', async (e)=>{
   const file = e.target.files[0];
@@ -589,22 +497,8 @@ function rowsToSheet(){
   ws['!cols'] = [{wch:12}, {wch:12}, {wch:20}, {wch:24}, {wch:18}, {wch:18}, {wch:14}, {wch:12}, {wch:12}, {wch:12}, {wch:20}, {wch:12}, {wch:12}, {wch:26}, {wch:16}, {wch:14}, {wch:16}, {wch:28}];
   return ws;
 }
-async function downloadExcel(manual=false){
+function downloadExcel(manual=false){
   if(rows.length===0){ alert('No hay registros para exportar'); return; }
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, rowsToSheet(), 'Inventario');
-  const base = sourceFileBase || DEFAULT_FILENAME_BASE;
-  const fileName = `${base}_${fmtNowStamp()}.xlsx`;
-  // descarga local
-  XLSX.writeFile(wb, fileName);
-  // push opcional a GitHub
-  try{
-    const pushed = await maybePushWorkbookToGitHub(wb, base);
-    if(pushed && manual) showToast('Excel descargado y subido a GitHub');
-    else if(manual) showToast('Excel descargado');
-  }catch(err){ console.warn(err); if(manual) alert('Subida a GitHub falló: ' + err.message); }
-  setDirty(false);
-}
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, rowsToSheet(), 'Inventario');
   const base = sourceFileBase || DEFAULT_FILENAME_BASE;
@@ -616,22 +510,6 @@ async function downloadExcel(manual=false){
 
 downloadBtn.addEventListener('click', ()=> downloadExcel(true));
 
-ghPushBtn.addEventListener('click', ()=> downloadExcel(true));
-
-ghConnectBtn.addEventListener('click', ()=>{
-  const token = prompt('Pega tu GitHub Fine-grained PAT (repo contents:write). Se guardará solo en esta sesión del navegador.', ghToken || '');
-  if(token===null) return;
-  ghToken = token.trim();
-  if(ghToken) sessionStorage.setItem(GH_TOKEN_SESSION_KEY, ghToken); else sessionStorage.removeItem(GH_TOKEN_SESSION_KEY);
-  const owner = prompt('Owner (usuario u organización)', ghCfg.owner || ''); if(owner===null) return; ghCfg.owner = owner.trim();
-  const repo = prompt('Repositorio (nombre)', ghCfg.repo || ''); if(repo===null) return; ghCfg.repo = repo.trim();
-  const branch = prompt('Branch', ghCfg.branch || 'main'); if(branch===null) return; ghCfg.branch = branch.trim();
-  const pathPrefix = prompt('Carpeta destino dentro del repo (ej. exports)', ghCfg.pathPrefix || 'exports'); if(pathPrefix===null) return; ghCfg.pathPrefix = pathPrefix.trim();
-  localStorage.setItem(GH_CFG_KEY, JSON.stringify(ghCfg));
-  updateGhUi();
-  showToast('Configuración de GitHub guardada');
-});
-
 templateBtn.addEventListener('click', ()=>{
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet([EXPECTED_HEADERS]);
@@ -642,10 +520,6 @@ templateBtn.addEventListener('click', ()=>{
 // ======= Filters =======
 searchInput.addEventListener('input', refreshTable);
 [filtroTipo, filtroEstado].forEach(el=> el.addEventListener('change', refreshTable));
-
-// Persistir flags al cambiar toggles
-autoExportToggle.addEventListener('change', saveGhFlags);
-autoCommitToggle.addEventListener('change', saveGhFlags);(el=> el.addEventListener('change', refreshTable));
 
 // ======= Auto-export on close =======
 window.addEventListener('beforeunload', (e)=>{
@@ -660,7 +534,6 @@ window.addEventListener('beforeunload', (e)=>{
 
 // ======= Bootstrap =======
 loadLocal();
-updateGhUi();
 
 // Keyboard niceties
 window.addEventListener('keydown', (e)=>{
